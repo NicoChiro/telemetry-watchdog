@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atmospheric Telemetry — Anomaly Log</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f8f8f6;
+      --surface: #ffffff;
+      --ink: #181818;
+      --muted: #5c5c58;
+      --rule: #d6d4ce;
+      --line: #2b3a4a;
+      --stl: #b83227;
+      --mad: #1f6f50;
+      --iforest: #8a5a00;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px 16px 48px;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .wrap {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      margin-bottom: 16px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    select {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      padding: 4px 8px;
+      border: 1px solid var(--ink);
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+    }
+
+    .summary-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      border: 1px solid var(--rule);
+      background: var(--surface);
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      padding: 10px 12px;
+      border-right: 1px solid var(--rule);
+    }
+    .stat:last-child { border-right: none; }
+
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    .stat-val {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 16px;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .chart-box {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      height: 320px;
+      width: 100%;
+    }
+
+    .table-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      max-height: 340px;
+      overflow-y: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      font-weight: 600;
+      color: var(--muted);
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 1px 5px;
+      font-size: 11px;
+      border: 1px solid currentColor;
+      margin-right: 4px;
+    }
+    .tag-stl { color: var(--stl); }
+    .tag-mad { color: var(--mad); }
+    .tag-if  { color: var(--iforest); }
+
+    #status {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NASA Giovanni Time-Series Anomaly Monitor</h1>
+    <span class="subtitle">LA &amp; NY · NO2 / AOD / PM2.5 (2005–2026)</span>
+  </header>
+
+  <div id="status">Loading repository datasets...</div>
+
+  <div class="controls">
+    <label>
+      Dataset
+      <select id="datasetSelect"></select>
+    </label>
+
+    <label><input type="checkbox" id="chkStl" checked>
+      <span class="swatch" style="background:var(--stl)"></span> Robust STL (resid |z| &gt; 3.5)
+    </label>
+
+    <label><input type="checkbox" id="chkMad" checked>
+      <span class="swatch" style="background:var(--mad)"></span> Modified Z-Score (MAD &gt; 3.5)
+    </label>
+
+    <label><input type="checkbox" id="chkIf" checked>
+      <span class="swatch" style="background:var(--iforest)"></span> IsolationForest (2% contam.)
+    </label>
+
+    <label>
+      Table filter
+      <select id="filterMode">
+        <option value="any">Any algorithm (≥ 1)</option>
+        <option value="consensus">Consensus (all 3)</option>
+        <option value="stl">Robust STL only</option>
+        <option value="mad">Modified Z-Score only</option>
+        <option value="if">IsolationForest only</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="summary-bar" id="summaryBar"></div>
+
+  <div class="chart-box">
+    <div class="chart-head">
+      <span id="chartTitle">—</span>
+      <span id="chartUnits">—</span>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="tsChart"></canvas>
+    </div>
+  </div>
+
+  <div class="table-head">
+    <h2>Flagged Observations</h2>
+    <span class="subtitle" id="rowCount">0 rows</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Value</th>
+          <th>Detectors Triggered</th>
+        </tr>
+      </thead>
+      <tbody id="anomBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const RAW_FILES = [
+  { id: "NO2_LA",   file: "NO2_LA.csv",   city: "Los Angeles", metric: "NO2 Tropospheric Column", unit: "molec/cm²" },
+  { id: "NO2_NY",   file: "NO2_NY.csv",   city: "New York",    metric: "NO2 Tropospheric Column", unit: "molec/cm²" },
+  { id: "AOD_LA",   file: "AOD_LA.csv",   city: "Los Angeles", metric: "Aerosol Optical Depth (550nm)", unit: "unitless" },
+  { id: "AOD_NY",   file: "AOD_NY.csv",   city: "New York",    metric: "Aerosol Optical Depth (550nm)", unit: "unitless" },
+  { id: "PM2.5_LA", file: "PM2.5_LA.csv", city: "Los Angeles", metric: "Surface PM2.5 Mass Conc.", unit: "kg/m³" },
+  { id: "PM2.5_NY", file: "PM2.5_NY.csv", city: "New York",    metric: "Surface PM2.5 Mass Conc.", unit: "kg/m³" }
+];
+
+let store = [];
+let chartInstance = null;
+
+function fmtNum(v) {
+  if (Math.abs(v) >= 1e5 || (Math.abs(v) > 0 && Math.abs(v) < 1e-3)) {
+    return v.toExponential(3);
+  }
+  return v.toFixed(4);
+}
+
+// Fallback parser if anomalies.json has not been generated yet
+async function loadFromRawCSVs() {
+  const out = [];
+  for (const meta of RAW_FILES) {
+    const res = await fetch(meta.file);
+    const text = await res.text();
+    const lines = text.split(/\r?\n/);
+    const fillVal = parseFloat(lines[6].split(",")[1]);
+    const series = [];
+    for (let i = 9; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const [tRaw, vRaw] = lines[i].split(",");
+      const v = parseFloat(vRaw);
+      if (!Number.isFinite(v) || Math.abs(v - fillVal) <= Math.abs(fillVal) * 1e-5 + 1e-12) continue;
+      series.push({ t: tRaw.slice(0, 10), v, stl: false, mad: false, if: false });
+    }
+    // Compute Modified Z-Score (MAD) in-browser as baseline fallback
+    const sorted = [...series.map(d => d.v)].sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const devs = sorted.map(x => Math.abs(x - med)).sort((a, b) => a - b);
+    const mad = devs[Math.floor(devs.length / 2)] || 1e-12;
+    let madCount = 0;
+    for (const pt of series) {
+      const z = 0.6745 * (pt.v - med) / mad;
+      if (Math.abs(z) > 3.5) { pt.mad = true; madCount++; }
+    }
+    out.push({
+      ...meta,
+      total_rows: lines.length - 9,
+      valid_rows: series.length,
+      counts: { stl: 0, mad: madCount, if: 0, consensus: 0 },
+      series
+    });
+  }
+  return out;
+}
+
+async function init() {
+  const statusEl = document.getElementById("status");
+  try {
+    const r = await fetch("anomalies.json", { cache: "no-store" });
+    if (!r.ok) throw new Error("No anomalies.json");
+    const json = await r.json();
+    store = json.datasets;
+    statusEl.textContent = "Source: anomalies.json (Python statsmodels Robust STL + MAD + IsolationForest)";
+  } catch (_) {
+    store = await loadFromRawCSVs();
+    statusEl.textContent = "Source: raw CSV files in repo (run detect_anomalies.py to populate Robust STL & IsolationForest)";
+  }
+
+  const sel = document.getElementById("datasetSelect");
+  store.forEach((d, idx) => {
+    const opt = document.createElement("option");
+    opt.value = idx;
+    opt.textContent = `${d.file} — ${d.city} (${d.metric})`;
+    sel.appendChild(opt);
+  });
+
+  ["datasetSelect", "chkStl", "chkMad", "chkIf", "filterMode"].forEach(id => {
+    document.getElementById(id).addEventListener("change", render);
+  });
+
+  render();
+}
+
+function render() {
+  const idx = parseInt(document.getElementById("datasetSelect").value, 10) || 0;
+  const ds = store[idx];
+  const showStl = document.getElementById("chkStl").checked;
+  const showMad = document.getElementById("chkMad").checked;
+  const showIf  = document.getElementById("chkIf").checked;
+  const mode    = document.getElementById("filterMode").value;
+
+  document.getElementById("chartTitle").textContent = `${ds.file} (${ds.city} — ${ds.metric})`;
+  document.getElementById("chartUnits").textContent = `Units: ${ds.unit}`;
+
+  document.getElementById("summaryBar").innerHTML = `
+    <div class="stat"><div class="stat-label">Valid Obs.</div><div class="stat-val">${ds.valid_rows.toLocaleString()}</div></div>
+    <div class="stat"><div class="stat-label">Robust STL</div><div class="stat-val" style="color:var(--stl)">${ds.counts.stl}</div></div>
+    <div class="stat"><div class="stat-label">Modified Z (MAD)</div><div class="stat-val" style="color:var(--mad)">${ds.counts.mad}</div></div>
+    <div class="stat"><div class="stat-label">IsolationForest</div><div class="stat-val" style="color:var(--iforest)">${ds.counts.if}</div></div>
+    <div class="stat"><div class="stat-label">3-Way Consensus</div><div class="stat-val">${ds.counts.consensus}</div></div>
+  `;
+
+  const labels = ds.series.map(p => p.t);
+  const baseLine = ds.series.map(p => p.v);
+  const stlPts = ds.series.map(p => (showStl && p.stl) ? p.v : null);
+  const madPts = ds.series.map(p => (showMad && p.mad) ? p.v : null);
+  const ifPts  = ds.series.map(p => (showIf  && p.if)  ? p.v : null);
+
+  if (chartInstance) chartInstance.destroy();
+  const ctx = document.getElementById("tsChart").getContext("2d");
+  chartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Observation",
+          data: baseLine,
+          borderColor: "#2b3a4a",
+          borderWidth: 1,
+          pointRadius: 0,
+          tension: 0
+        },
+        {
+          label: "Robust STL",
+          data: stlPts,
+          borderColor: "#b83227",
+          backgroundColor: "#b83227",
+          showLine: false,
+          pointRadius: 3,
+          pointStyle: "circle"
+        },
+        {
+          label: "Modified Z (MAD)",
+          data: madPts,
+          borderColor: "#1f6f50",
+          backgroundColor: "#1f6f50",
+          showLine: false,
+          pointRadius: 4,
+          pointStyle: "triangle"
+        },
+        {
+          label: "IsolationForest",
+          data: ifPts,
+          borderColor: "#8a5a00",
+          backgroundColor: "#8a5a00",
+          showLine: false,
+          pointRadius: 4,
+          pointStyle: "rectRot"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      normalized: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: "index",
+          intersect: false,
+          callbacks: {
+            label: c => c.raw === null ? null : `${c.dataset.label}: ${fmtNum(c.raw)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { maxTicksLimit: 12, color: "#5c5c58", font: { family: "monospace", size: 11 } },
+          grid: { color: "#eceae4" }
+        },
+        y: {
+          ticks: {
+            color: "#5c5c58",
+            font: { family: "monospace", size: 11 },
+            callback: v => fmtNum(v)
+          },
+          grid: { color: "#eceae4" }
+        }
+      }
+    }
+  });
+
+  const flagged = ds.series.filter(p => {
+    if (mode === "consensus") return p.stl && p.mad && p.if;
+    if (mode === "stl") return p.stl;
+    if (mode === "mad") return p.mad;
+    if (mode === "if")  return p.if;
+    return p.stl || p.mad || p.if;
+  });
+
+  document.getElementById("rowCount").textContent = `${flagged.length} rows`;
+  const tbody = document.getElementById("anomBody");
+  tbody.innerHTML = flagged.slice().reverse().map(p => {
+    const tags = [
+      p.stl ? `<span class="tag tag-stl">STL</span>` : "",
+      p.mad ? `<span class="tag tag-mad">MAD</span>` : "",
+      p.if  ? `<span class="tag tag-if">IF</span>`   : ""
+    ].join("");
+    return `<tr><td>${p.t}</td><td>${fmtNum(p.v)}</td><td>${tags}</td></tr>`;
+  }).join("");
+}
+
+init();
+</script>
+</body>
+</html>
